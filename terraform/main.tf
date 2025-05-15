@@ -102,7 +102,6 @@ resource "aws_security_group" "rds_sg" {
 }
 
 # Create RDS instance
-# Create RDS instance
 resource "aws_db_instance" "visitor_db" {
   allocated_storage    = 20
   storage_type         = "gp2"
@@ -191,7 +190,21 @@ resource "aws_api_gateway_method" "get_visitors" {
   rest_api_id   = aws_api_gateway_rest_api.visitor_api.id
   resource_id   = aws_api_gateway_resource.visitors.id
   http_method   = "GET"
-  authorization= "NONE"
+  authorization = "NONE"
+}
+
+# GET method response
+resource "aws_api_gateway_method_response" "get_200" {
+  rest_api_id   = aws_api_gateway_rest_api.visitor_api.id
+  resource_id   = aws_api_gateway_resource.visitors.id
+  http_method   = aws_api_gateway_method.get_visitors.http_method
+  status_code   = "200"
+  
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = true
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+  }
 }
 
 # Lambda integration
@@ -210,7 +223,7 @@ resource "aws_api_gateway_method" "options_method" {
   rest_api_id   = aws_api_gateway_rest_api.visitor_api.id
   resource_id   = aws_api_gateway_resource.visitors.id
   http_method   = "OPTIONS"
-  authorization= "NONE"
+  authorization = "NONE"
 }
 
 resource "aws_api_gateway_method_response" "options_200" {
@@ -246,19 +259,23 @@ resource "aws_api_gateway_integration_response" "options_integration_response" {
   response_parameters = {
     "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
-    "method.response.header.Access-Control-Allow-Origin"  = "'*'"  # Changed from 'https://www.peter-kvac.com' to '*' possibly unsafe?
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
 }
 
-# API deployment
+# API deployment with timestamp to force new deployment
 resource "aws_api_gateway_deployment" "api_deployment" {
   depends_on = [
     aws_api_gateway_integration.lambda_integration,
-    aws_api_gateway_integration.options_integration
+    aws_api_gateway_integration.options_integration,
+    aws_api_gateway_method_response.get_200
   ]
   
   rest_api_id = aws_api_gateway_rest_api.visitor_api.id
   stage_name  = "prod"
+  
+  # Add this line to force a new deployment
+  description = "Deployed at ${timestamp()}"
 }
 
 # Lambda permission for API Gateway
